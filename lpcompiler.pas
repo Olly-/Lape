@@ -2647,6 +2647,35 @@ var
     Result := Resolve(Node, not SkipTop, not SkipTop, HasChanged);
   end;
 
+  function GetArrayHelper(Expr: TLapeTree_ExprBase): TLapeTree_Invoke;
+  var
+    Name: String;
+    MethodClass: TLapeTree_InternalMethodClass;
+  begin
+    Result := nil;
+
+    if (Expr is TLapeTree_Operator) and (TLapeTree_Operator(Expr).Left <> nil) and (TLapeTree_Operator(Expr).Right <> nil) and
+       (TLapeTree_Operator(Expr).Left.ResType.BaseType in LapeArrayTypes) and (TLapeTree_Operator(Expr).Right is TLapeTree_String) then
+    begin
+      Name := PlpString(TLapeTree_String(TLapeTree_Operator(Expr).Right).GlobalVar.Ptr)^;
+
+      if (FInternalMethodMap.ExistsKey(Name)) then
+      begin
+        MethodClass := FInternalMethodMap[Name];
+
+        if (MethodClass.IsArrayHelper()) then
+        begin
+          if (MethodClass = TLapeTree_InternalMethod_Insert) then // Insert = (src, dst, index)
+            MethodClass := TLapeTree_InternalMethod_InsertEx;     // InsertEx = (dst, src, index)
+
+          Result := MethodClass.Create(Self, getPDocPos());
+          Result.addParam(TLapeTree_Operator(Expr).Left);
+          Result.Expr := Expr;
+        end;
+      end;
+    end;
+  end;
+
 begin
   Result := nil;
   Method := nil;
@@ -2714,10 +2743,16 @@ begin
               if (Method = nil) then
               begin
                 Expr := ResolveMethods(VarStack.Top.FoldConstants(), True) as TLapeTree_ExprBase;
+
                 if (Expr <> VarStack.Pop()) and (Expr is TLapeTree_InternalMethod) then
                   Method := TLapeTree_Invoke(Expr)
                 else
-                  Method := TLapeTree_Invoke.Create(Expr, Self, getPDocPos());
+                begin
+                  if (lcoArrayHelpers in FOptions) then
+                    Method := GetArrayHelper(Expr);
+                  if (Method = nil) then
+                    Method := TLapeTree_Invoke.Create(Expr, Self, getPDocPos())
+                end;
               end;
               if (Next() <> tk_sym_ParenthesisClose) then
               begin
@@ -3229,6 +3264,8 @@ begin
   FInternalMethodMap['Copy'] := TLapeTree_InternalMethod_Copy;
   FInternalMethodMap['Delete'] := TLapeTree_InternalMethod_Delete;
   FInternalMethodMap['Insert'] := TLapeTree_InternalMethod_Insert;
+  FInternalMethodMap['InsertEx'] := TLapeTree_InternalMethod_InsertEx;
+  FInternalMethodMap['Pop'] := TLapeTree_InternalMethod_Pop;
 
   FInternalMethodMap['Ord'] := TLapeTree_InternalMethod_Ord;
   FInternalMethodMap['Succ'] := TLapeTree_InternalMethod_Succ;

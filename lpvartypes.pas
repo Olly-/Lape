@@ -31,13 +31,14 @@ type
     lcoHints,                          // {$H} {$HINTS}
     lcoContinueCase,                   //      {$CONTINUECASE}
     lcoCOperators,                     //      {$COPERATORS}
-    lcoInitExternalResult              // Ensure empty result for external calls (useful for ffi)
+    lcoInitExternalResult,             // Ensure empty result for external calls (useful for ffi)
+    lcoArrayHelpers                    // Add system methods to each array type (delete, insert etc.)
   );
   ECompilerOptionsSet = set of ECompilerOption;
   PCompilerOptionsSet = ^ECompilerOptionsSet;
 
 const
-  Lape_OptionsDef = [lcoCOperators, lcoRangeCheck, lcoHints, lcoShortCircuit, lcoAlwaysInitialize, lcoAutoInvoke, lcoConstAddress];
+  Lape_OptionsDef = [lcoCOperators, lcoRangeCheck, lcoHints, lcoShortCircuit, lcoAlwaysInitialize, lcoAutoInvoke, lcoConstAddress, lcoArrayHelpers];
   Lape_PackRecordsDef = 8;
 
 type

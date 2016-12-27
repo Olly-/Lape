@@ -186,6 +186,9 @@ type
   public
     constructor Create(ACompiler: TLapeCompilerBase; ADocPos: PDocPos = nil); override;
     procedure ClearCache; override;
+
+    class function IsArrayHelper: Boolean; virtual;
+
     property ForceParam: Boolean read FForceParam;
   end;
 
@@ -291,6 +294,8 @@ type
     function resType: TLapeType; override;
     function Evaluate: TLapeGlobalVar; override;
     function Compile(var Offset: Integer): TResVar; override;
+
+    class function IsArrayHelper: Boolean; override;
   end;
 
   TLapeTree_InternalMethod_High = class(TLapeTree_InternalMethod)
@@ -300,6 +305,8 @@ type
     function resType: TLapeType; override;
     function Evaluate: TLapeGlobalVar; override;
     function Compile(var Offset: Integer): TResVar; override;
+
+    class function IsArrayHelper: Boolean; override;
   end;
 
   TLapeTree_InternalMethod_Length = class(TLapeTree_InternalMethod)
@@ -309,25 +316,40 @@ type
     function resType: TLapeType; override;
     function Evaluate: TLapeGlobalVar; override;
     function Compile(var Offset: Integer): TResVar; override;
+
+    class function IsArrayHelper: Boolean; override;
   end;
 
   TLapeTree_InternalMethod_SetLength = class(TLapeTree_InternalMethod)
   public
     function Compile(var Offset: Integer): TResVar; override;
+
+    class function IsArrayHelper: Boolean; override;
   end;
 
   TLapeTree_InternalMethod_Copy = class(TLapeTree_InternalMethod)
   public
     function resType: TLapeType; override;
     function Compile(var Offset: Integer): TResVar; override;
+
+    class function IsArrayHelper: Boolean; override;
   end;
 
   TLapeTree_InternalMethod_Delete = class(TLapeTree_InternalMethod)
   public
     function Compile(var Offset: Integer): TResVar; override;
+
+    class function IsArrayHelper: Boolean; override;
   end;
 
   TLapeTree_InternalMethod_Insert = class(TLapeTree_InternalMethod)
+  public
+    function Compile(var Offset: Integer): TResVar; override;
+
+    class function IsArrayHelper: Boolean; override;
+  end;
+
+  TLapeTree_InternalMethod_InsertEx = class(TLapeTree_InternalMethod) // Swapped source & dest params
   public
     function Compile(var Offset: Integer): TResVar; override;
   end;
@@ -374,6 +396,14 @@ type
   TLapeTree_InternalMethod_Raise = class(TLapeTree_InternalMethod)
   public
     constructor Create(ACompiler: TLapeCompilerBase; ADocPos: PDocPos = nil); override;
+  end;
+
+  TLapeTree_InternalMethod_Pop = class(TLapeTree_InternalMethod)
+  public
+    function resType: TLapeType; override;
+    function Compile(var Offset: Integer): TResVar; override;
+
+    class function IsArrayHelper: Boolean; override;
   end;
 
   TLapeTree_Callback = class;
@@ -2443,6 +2473,11 @@ begin
   {nothing}
 end;
 
+class function TLapeTree_InternalMethod.IsArrayHelper: Boolean;
+begin
+  Result := False;
+end;
+
 constructor TLapeTree_InternalMethod_Write.Create(ACompiler: TLapeCompilerBase; ADocPos: PDocPos = nil);
 var
   _Write: TLapeGlobalVar;
@@ -3146,6 +3181,11 @@ begin
   LapeException(lpeCannotEvalRunTime, DocPos);
 end;
 
+class function TLapeTree_InternalMethod_Low.IsArrayHelper: Boolean;
+begin
+  Result := True;
+end;
+
 procedure TLapeTree_InternalMethod_High.ClearCache;
 begin
   FConstant := bUnknown;
@@ -3249,6 +3289,11 @@ begin
     end;
   end;
   Param.Spill(1);
+end;
+
+class function TLapeTree_InternalMethod_High.IsArrayHelper: Boolean;
+begin
+  Result := True;
 end;
 
 procedure TLapeTree_InternalMethod_Length.ClearCache;
@@ -3362,6 +3407,11 @@ begin
   Param.Spill(1);
 end;
 
+class function TLapeTree_InternalMethod_Length.IsArrayHelper: Boolean;
+begin
+  Result := True;
+end;
+
 function TLapeTree_InternalMethod_SetLength.Compile(var Offset: Integer): TResVar;
 type
   TSetLength = class of TLapeTree_InternalMethod_SetLength;
@@ -3462,6 +3512,11 @@ begin
     Param.Spill(1);
     Len.Spill(1);
   end;
+end;
+
+class function TLapeTree_InternalMethod_SetLength.IsArrayHelper: Boolean;
+begin
+  Result := True;
 end;
 
 function TLapeTree_InternalMethod_Copy.resType: TLapeType;
@@ -3602,6 +3657,111 @@ begin
   end;
 end;
 
+class function TLapeTree_InternalMethod_Copy.IsArrayHelper: Boolean;
+begin
+  Result := True;
+end;
+
+function TLapeTree_InternalMethod_Pop.resType: TLapeType;
+var
+  ParamType: TLapeType;
+begin
+  if (FResType = nil) then
+  begin
+    if (FParams.Count <> 1) or isEmpty(FParams[0]) then
+      LapeExceptionFmt(lpeWrongNumberParams, [1], DocPos);
+
+    ParamType := Params[0].resType();
+    if (ParamType <> nil) then
+      FResType := TLapeType_DynArray(ParamType).PType;
+  end;
+
+  Result := inherited;
+end;
+
+function TLapeTree_InternalMethod_Pop.Compile(var Offset: Integer): TResVar;
+
+  function ArrayHigh(Arr: TResVar; Dec: Int32 = 0): TResVar;
+  begin
+    with TLapeTree_InternalMethod_High.Create(Self) do
+    try
+      addParam(TLapeTree_ResVar.Create(Arr, Self));
+      Result := Compile(Offset);
+    finally
+      Free();
+    end;
+
+    if (Dec > 0) then
+    begin
+      Result.setWriteable(True);
+
+      with TLapeTree_InternalMethod_Dec.Create(Self) do
+      try
+        addParam(TLapeTree_ResVar.Create(Result, Self));
+        addParam(TLapeTree_Integer.Create(Dec, Self));
+        Compile(Offset);
+      finally
+        Free();
+      end;
+    end;
+  end;
+
+var
+  Param, tmpVar: TResVar;
+begin
+  Result := NullResVar;
+  Dest := NullResVar;
+
+  if (FParams.Count <> 1) or isEmpty(FParams[0]) then
+    LapeExceptionFmt(lpeWrongNumberParams, [1], DocPos);
+
+  if (not FParams[0].CompileToTempVar(Offset, Param)) or (not Param.HasType()) or
+     (not (Param.VarType.BaseType in LapeArrayTypes - [ltStaticArray]))
+  then
+    LapeException(lpeInvalidEvaluation, DocPos);
+
+  Result := _ResVar.New(FCompiler.getTempVar(Self.resType()));
+
+  // tmpVar := Arr[High(Arr)];
+  with TLapeTree_Operator.Create(op_Index, Self) do
+  try
+    Left := TLapeTree_ResVar.Create(Param, Self);
+    Right := TLapeTree_ResVar.Create(ArrayHigh(Param), Self);
+    tmpVar := Compile(Offset);
+  finally
+    Free();
+  end;
+
+  // Result := tmpVar;
+  with TLapeTree_Operator.Create(op_Assign, Self) do
+  try
+    Left := TLapeTree_ResVar.Create(Result, Self);
+    Right := TLapeTree_ResVar.Create(tmpVar, Self);
+    Compile(Offset);
+  finally
+    Free();
+  end;
+
+  // SetLength(Arr, Length(Arr) - 1);
+  with TLapeTree_InternalMethod_SetLength.Create(Self) do
+  try
+    addParam(TLapeTree_ResVar.Create(Param, Self));
+    if (Param.VarType.BaseType in LapeStringTypes) then
+      addParam(TLapeTree_ResVar.Create(ArrayHigh(Param, 1), Self))
+    else
+      addParam(TLapeTree_ResVar.Create(ArrayHigh(Param), Self));
+
+    Compile(Offset);
+  finally
+    Free();
+  end;
+end;
+
+class function TLapeTree_InternalMethod_Pop.IsArrayHelper: Boolean;
+begin
+  Result := True;
+end;
+
 function TLapeTree_InternalMethod_Delete.Compile(var Offset: Integer): TResVar;
 var
   Param: TResVar;
@@ -3657,6 +3817,11 @@ begin
   end;
 end;
 
+class function TLapeTree_InternalMethod_Delete.IsArrayHelper: Boolean;
+begin
+  Result := True;
+end;
+
 function TLapeTree_InternalMethod_Insert.Compile(var Offset: Integer): TResVar;
 var
   SrcRes, DstRes: TResVar;
@@ -3709,6 +3874,109 @@ begin
 
           if ArrayType.Equals(SrcRes.VarType) then
             TmpExpr := TLapeTree_Integer.Create(1, FParams[0])
+          else
+            TmpExpr := nil;
+        end
+        else
+            LapeExceptionFmt(lpeNoOverloadedMethod, [getParamTypesStr()], DocPos);
+
+        DstRes.VarType := FCompiler.getBaseType(ltPointer);
+      end;
+    end;
+
+    with TLapeTree_Invoke.Create(_ArrayDelete, Self) do
+    try
+      addParam(Src);
+      addParam(TLapeTree_ResVar.Create(DstRes.IncLock(), Self.FParams[1]));
+      addParam(Self.FParams[2]);
+      addParam(Self.FParams[2]);
+
+      if (not (DstRes.VarType.BaseType in LapeStringTypes)) then
+      begin
+        if (TmpExpr = nil) then
+        begin
+          TmpExpr := TLapeTree_InternalMethod_Length.Create(Self);
+          TLapeTree_InternalMethod_Length(TmpExpr).addParam(TLapeTree_ResVar.Create(SrcRes.IncLock(), Self.FParams[0]));
+        end;
+        addParam(TLapeTree_ExprBase(TmpExpr.FoldConstants()));
+
+        addParam(TLapeTree_Integer.Create(ArrayType.Size, Self.FParams[0]));
+        addParam(TLapeTree_ResVar.Create(GetMagicMethodOrNil(FCompiler, '_Dispose', [ArrayType]), Self));
+        addParam(TLapeTree_ResVar.Create(GetMagicMethodOrNil(FCompiler, '_Assign', [ArrayType, ArrayType]), Self));
+      end;
+
+      Result := Compile(Offset);
+    finally
+      Self.addParam(Params[2]);
+      Self.addParam(Params[2]);
+      Free();
+    end;
+  finally
+    if wasConstant then
+      SrcRes.Writeable := False;
+
+    SrcRes.Spill(1);
+    DstRes.Spill(1);
+  end;
+end;
+
+class function TLapeTree_InternalMethod_Insert.IsArrayHelper: Boolean;
+begin
+  Result := True;
+end;
+
+function TLapeTree_InternalMethod_InsertEx.Compile(var Offset: Integer): TResVar;
+var
+  SrcRes, DstRes: TResVar;
+  Src, TmpExpr: TLapeTree_ExprBase;
+  wasConstant: Boolean;
+  ArrayType: TLapeType;
+  _ArrayDelete: TLapeGlobalVar;
+begin
+  Result := NullResVar;
+  Dest := NullResVar;
+  TmpExpr := nil;
+
+  if (FParams.Count < 2) or (FParams.Count > 4) or isEmpty(FParams[0]) or isEmpty(FParams[1]) then
+    LapeExceptionFmt(lpeWrongNumberParams, [1], DocPos);
+
+  if (not FParams[0].CompileToTempVar(Offset, DstRes)) or (not DstRes.HasType()) or
+     (not (DstRes.VarType.BaseType in LapeArrayTypes - [ltStaticArray, ltShortString]))
+  then
+    LapeException(lpeInvalidEvaluation, DocPos);
+
+  ArrayType := TLapeType_DynArray(DstRes.VarType).PType;
+  FParams[1] := TLapeTree_ExprBase(FParams[1].setExpectedType(DstRes.VarType).setExpectedType(ArrayType));
+  if (not FParams[1].CompileToTempVar(Offset, SrcRes)) or (not SrcRes.HasType()) or (ArrayType = nil) then
+    LapeException(lpeInvalidEvaluation, DocPos);
+
+  wasConstant :=  not SrcRes.Writeable;
+  if wasConstant then
+    SrcRes.Writeable := True;
+  Src := TLapeTree_ResVar.Create(SrcRes.IncLock(), FParams[0]);
+
+  try
+    case DstRes.VarType.BaseType of
+      ltAnsiString:    _ArrayDelete := FCompiler['_AStr_Insert'];
+      ltWideString:    _ArrayDelete := FCompiler['_WStr_Insert'];
+      ltUnicodeString: _ArrayDelete := FCompiler['_UStr_Insert'];
+      else
+      begin
+        _ArrayDelete := FCompiler['_ArrayInsert'];
+
+        if DstRes.VarType.Equals(SrcRes.VarType) then
+          TLapeTree_ResVar(Src).FResVar.VarType := FCompiler.getBaseType(ltPointer)
+        else if ArrayType.Equals(SrcRes.VarType) or (
+          (SrcRes.VarType is TLapeType_StaticArray) and
+          ArrayType.Equals(TLapeType_StaticArray(SrcRes.VarType).PType))
+        then
+        begin
+          TmpExpr := TLapeTree_Operator.Create(op_Addr, Src);
+          TLapeTree_Operator(TmpExpr).Left := Src;
+          Src := TmpExpr;
+
+          if ArrayType.Equals(SrcRes.VarType) then
+            TmpExpr := TLapeTree_Integer.Create(1, FParams[1])
           else
             TmpExpr := nil;
         end
