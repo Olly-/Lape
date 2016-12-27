@@ -1,0 +1,31 @@
+{$assertions on}
+
+var
+  Mat: array of array of Int32;
+  Arr: array of Int32;
+
+  A: AnsiString    = '123';
+  B: WideString    = '456';
+  C: UnicodeString = '789';
+begin
+  Mat := [
+          [1, 2],
+          [3, 4],
+          [5, 6]
+         ];
+
+  Arr := Pop(Mat);
+  Assert((Arr[0] = 5) and (Arr[1] = 6));
+
+  Arr := Pop(Mat);
+  Assert((Arr[0] = 3) and (Arr[1] = 4));
+
+  Arr := Pop(Mat);
+  Assert((Arr[0] = 1) and (Arr[1] = 2));
+
+  Assert(Length(Mat) = 0);
+
+  Assert((Pop(A) = '3') and (Length(A) = 2));
+  Assert((Pop(B) = '6') and (Length(B) = 2));
+  Assert((Pop(C) = '9') and (Length(C) = 2));
+end; 
