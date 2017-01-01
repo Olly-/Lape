@@ -237,6 +237,8 @@ type
 
     function addDelayedCode(ACode: lpString; AFileName: lpString = ''; AfterCompilation: Boolean = True; IsGlobal: Boolean = True): TLapeTree_Base; virtual;
 
+    procedure addArrayHelper(AName: lpString; VarType: TLapeType); override;
+
     property InternalMethodMap: TLapeInternalMethodMap read FInternalMethodMap;
     property Tree: TLapeTree_Base read FTree;
     property DelayedTree: TLapeTree_DelayedStatementList read FDelayedTree;
@@ -2747,12 +2749,7 @@ begin
                 if (Expr <> VarStack.Pop()) and (Expr is TLapeTree_InternalMethod) then
                   Method := TLapeTree_Invoke(Expr)
                 else
-                begin
-                  if (lcoArrayHelpers in FOptions) then
-                    Method := GetArrayHelper(Expr);
-                  if (Method = nil) then
-                    Method := TLapeTree_Invoke.Create(Expr, Self, getPDocPos())
-                end;
+                  Method := TLapeTree_Invoke.Create(Expr, Self, getPDocPos())
               end;
               if (Next() <> tk_sym_ParenthesisClose) then
               begin
@@ -4040,6 +4037,115 @@ begin
   end;
 end;
 
+procedure TLapeCompiler.addArrayHelper(AName: lpString; VarType: TLapeType);
+
+  function CreateHelper(AName: lpString; VarType: TLapeType; ParamTypes: array of TLapeType; ResType: TLapeType = nil): TLapeTree_Method;
+
+    function SetStackOwner(AStackInfo: TLapeStackInfo): TLapeStackInfo;
+    begin
+      Result := FStackInfo.Owner;
+      if (AStackInfo = nil) then
+        FStackInfo.Owner := Result.Owner
+      else
+      begin
+        AStackInfo.Owner := FStackInfo.Owner;
+        FStackInfo.Owner := AStackInfo;
+      end;
+    end;
+
+  var
+    Header: TLapeType_MethodOfType;
+    Param: TLapeParameter;
+    Method: TLapeTree_InternalMethod;
+    Assign: TLapeTree_Operator;
+    i: Int32;
+    Pos: PDocPos;
+  begin
+    Result := nil;
+    Pos := getPDocPos();
+
+    if (not hasDeclaration(VarType, FStackInfo.Owner, True, False)) then
+      LapeException(lpeParentOutOfScope, Pos^);
+
+    Header := TLapeType_MethodOfType.Create(Self, VarType, nil, nil, '', nil);
+    for i := 0 to High(ParamTypes) do
+    begin
+      if (ParamTypes[i] = VarType) then
+        Continue;
+      Param := NullParameter;
+      Param.VarType := ParamTypes[i];
+
+      Header.Params.Add(Param);
+    end;
+
+    if (ResType <> nil) then
+      Header.Res := ResType;
+    Header := addManagedType(Header) as TLapeType_MethodOfType;
+
+    IncStackInfo();
+
+    FStackInfo.addSelfVar(Header.SelfParam, Header.ObjectType);
+    for i := 0 to Header.Params.Count - 1 do
+      FStackInfo.addVar(Header.Params[i].ParType, Header.Params[i].VarType);
+    if (Header.Res <> nil) then
+      FStackInfo.addVar(lptOut, Header.Res);
+
+    SetStackOwner(TLapeDeclStack.Create(Header.ObjectType));
+
+    try
+      Result := TLapeTree_Method.Create(TLapeGlobalVar(addLocalDecl(Header.NewGlobalVar(EndJump), FStackInfo.Owner)), FStackInfo, Self, Pos);
+
+      try
+        Result.Method.Name := AName;
+        Result.Method.setReadWrite(False, False);
+        Result.Statements :=  TLapeTree_StatementList.Create(Self, Pos);
+
+        Method := FInternalMethodMap[AName].Create(Self, Pos);
+        for i := 0 to High(ParamTypes) do
+          Method.AddParam(TLapeTree_ResVar.Create(_ResVar.New(FStackInfo.Vars[i]), Result));
+
+        if (Method.ResType <> nil) and (ResType = nil) then
+          LapeException(lpeImpossible, Pos^);
+        if (Method.ResType <> nil) and (Method.ResType <> ResType) then
+          LapeException(Format(lpeIncompatibleAssignment, [Method.ResType.AsString, ResType.AsString]), Pos^);
+
+        if (Method.ResType <> nil) then
+        begin
+          Assign := TLapeTree_Operator.Create(op_Assign, Self);
+          Assign.Left := TLapeTree_ResVar.Create(_ResVar.New(FStackInfo.Vars[FStackInfo.VarCount - 1]), Result);
+          Assign.Right := Method;
+
+          Result.Statements.addStatement(Assign);
+        end else
+          Result.Statements.addStatement(Method);
+      except
+        if (Result <> nil) then
+        begin
+          Result.FreeStackInfo := False;
+          Result.Free();
+          Result := nil;
+        end;
+
+        raise;
+      end;
+    finally
+      SetStackOwner(nil).Free();
+      DecStackInfo(True, False, (Result = nil));
+    end;
+
+    addDelayedExpression(Result, True, True);
+  end;
+
+begin
+  if (FInternalMethodMap.ExistsKey(AName)) and (FInternalMethodMap[AName].IsArrayHelper()) then
+    case AName of
+      'SetLength': CreateHelper('SetLength', VarType, [VarType, BaseTypes[ltInt32]], BaseTypes[ltInt32]);
+      'Length': CreateHelper('Length', VarType, [VarType], BaseTypes[ltInt64]);
+      'Delete': CreateHelper('Delete', VarType, [VarType, BaseTypes[ltInt32], BaseTypes[ltInt32]]);
+      'Pop': CreateHelper('Pop', VarType, [VarType], TLapeType_DynArray(VarType).PType);
+    end;
+end;
+
 constructor TLapeType_SystemUnit.Create(ACompiler: TLapeCompilerBase);
 begin
   inherited Create(ltUnknown, ACompiler);
@@ -4053,7 +4159,8 @@ begin
   //Nothing
 end;
 
-function TLapeType_SystemUnit.CanHaveChild: Boolean;begin
+function TLapeType_SystemUnit.CanHaveChild: Boolean;
+begin
   Result := (FCompiler <> nil);
 end;
 

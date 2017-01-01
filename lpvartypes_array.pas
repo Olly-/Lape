@@ -767,9 +767,16 @@ begin
       Free();
     end;
     if wasConstant then Result.Writeable := False;
-  end
-  else
+  end else
+  begin
+    if (op = op_Dot) and (BaseType = ltDynArray) and (ValidFieldName(ARight)) then
+    begin
+      if (not HasSubDeclaration(PlpString(ARight.VarPos.GlobalVar.Ptr)^, bTrue)) then
+        FCompiler.addArrayHelper(PlpString(ARight.VarPos.GlobalVar.Ptr)^, Self);
+    end;
+
     Result := inherited;
+  end;
 end;
 
 function TLapeType_StaticArray.getPadding: SizeInt;

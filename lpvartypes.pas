@@ -677,6 +677,8 @@ type
     function hasDeclaration(ADecl: TLapeDeclaration; AStackInfo: TLapeStackInfo; LocalOnly: Boolean = False; CheckWith: Boolean = True): Boolean; overload; virtual;
     function hasDeclaration(ADecl: TLapeDeclaration; LocalOnly: Boolean = False; CheckWith: Boolean = True): Boolean; overload; virtual;
 
+    procedure addArrayHelper(AName: lpString; VarType: TLapeType); virtual;
+
     procedure Hint(Msg: lpString; Args: array of const; ADocPos: TDocPos);
 
     property StackInfo: TLapeStackInfo read FStackInfo;
@@ -4563,6 +4565,11 @@ end;
 function TLapeCompilerBase.hasDeclaration(ADecl: TLapeDeclaration; LocalOnly: Boolean = False; CheckWith: Boolean = True): Boolean;
 begin
   Result := hasDeclaration(ADecl, FStackInfo, LocalOnly, CheckWith);
+end;
+
+procedure TLapeCompilerBase.addArrayHelper(AName: lpString; VarType: TLapeType);
+begin
+  { nothing }
 end;
 
 procedure TLapeCompilerBase.Hint(Msg: lpString; Args: array of const; ADocPos: TDocPos);
