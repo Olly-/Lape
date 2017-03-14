@@ -3221,6 +3221,7 @@ begin
   FInternalMethodMap['Copy'] := TLapeTree_InternalMethod_Copy;
   FInternalMethodMap['Delete'] := TLapeTree_InternalMethod_Delete;
   FInternalMethodMap['Insert'] := TLapeTree_InternalMethod_Insert;
+  FInternalMethodMap['Pop'] := TLapeTree_InternalMethod_Pop;
 
   FInternalMethodMap['Ord'] := TLapeTree_InternalMethod_Ord;
   FInternalMethodMap['Succ'] := TLapeTree_InternalMethod_Succ;

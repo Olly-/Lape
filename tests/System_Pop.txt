@@ -1,0 +1,19 @@
+{$assertions on}
+
+var
+  Arr: array of array of Int32 = [[1, 2, 3], [4, 5, 6]];
+  A: array of Int32;
+
+  S: String = 'ABC';
+begin
+  A := Pop(Arr);
+  Assert((A[0] = 4) and (A[1] = 5) and (A[2] = 6));
+  Assert(Length(Arr) = 1);
+  Assert((Arr[0][0] = 1) and (Arr[0][1] = 2) and (Arr[0][2] = 3));
+
+  Assert(Pop(S) = 'C');
+  Assert(Pop(S) = 'B');
+  Assert(Pop(S) = 'A');
+
+  Writeln('Pop :: Passed');
+end;
