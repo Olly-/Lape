@@ -7,26 +7,6 @@
 }
 {%MainUnit lpeval.pas}
 
-procedure _LapeMin(const Params: PParamArray; const Result: Pointer); {$IFDEF Lape_CDECL}cdecl;{$ENDIF}
-begin
-  PInt64(Result)^ := Min(PInt64(Params^[0])^, PInt64(Params^[1])^);
-end;
-
-procedure _LapeMinF(const Params: PParamArray; const Result: Pointer); {$IFDEF Lape_CDECL}cdecl;{$ENDIF}
-begin
-  PExtended(Result)^ := Min(PExtended(Params^[0])^, PExtended(Params^[1])^);
-end;
-
-procedure _LapeMax(const Params: PParamArray; const Result: Pointer); {$IFDEF Lape_CDECL}cdecl;{$ENDIF}
-begin
-  PInt64(Result)^ := Max(PInt64(Params^[0])^, PInt64(Params^[1])^);
-end;
-
-procedure _LapeMaxF(const Params: PParamArray; const Result: Pointer); {$IFDEF Lape_CDECL}cdecl;{$ENDIF}
-begin
-  PExtended(Result)^ := Max(PExtended(Params^[0])^, PExtended(Params^[1])^);
-end;
-
 procedure _LapeAbs(const Params: PParamArray; const Result: Pointer); {$IFDEF Lape_CDECL}cdecl;{$ENDIF}
 begin
   PExtended(Result)^ := Abs(PExtended(Params^[0])^);

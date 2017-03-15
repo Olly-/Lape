@@ -382,6 +382,18 @@ type
     function Compile(var Offset: Integer): TResVar; override;
   end;
 
+  TLapeTree_InternalMethod_Min = class(TLapeTree_InternalMethod)
+  public
+    function resType: TLapeType; override;
+    function Compile(var Offset: Integer): TResVar; override;
+  end;
+
+  TLapeTree_InternalMethod_Max = class(TLapeTree_InternalMethod)
+  public
+    function resType: TLapeType; override;
+    function Compile(var Offset: Integer): TResVar; override;
+  end;
+
   TLapeTree_Callback = class;
   TLapeTreeCallback = procedure(Self: TLapeTree_Callback) of object;
 
@@ -4264,6 +4276,132 @@ begin
   Param.Spill(3);
   Hi.Spill(2);
   Element.Spill(1);
+end;
+
+function TLapeTree_InternalMethod_Min.resType: TLapeType;
+begin
+  if (FResType = nil) then
+  begin
+    if (FParams.Count < 2) then
+      LapeExceptionFmt(lpeWrongNumberParams, [2], DocPos);
+
+    FResType := FParams[0].resType();
+    if not (FResType.BaseType in LapeIntegerTypes + LapeRealTypes) then
+      LapeException(lpeInvalidEvaluation, DocPos);
+  end;
+
+  Result := inherited;
+end;
+
+function TLapeTree_InternalMethod_Min.Compile(var Offset: Integer): TResVar;
+var
+  Param: TResVar;
+  i: Int32;
+begin
+  Dest := NullResVar;
+  Result := NullResVar;
+
+  if (FParams.Count < 2) then
+    LapeExceptionFmt(lpeWrongNumberParams, [2], DocPos);
+
+  FParams[0].CompileToTempVar(Offset, Result);
+  if not (FResType.BaseType in LapeIntegerTypes + LapeRealTypes) then
+    LapeException(lpeInvalidEvaluation, DocPos);
+
+  Result.setReadWrite(True, True);
+
+  for i := 1 to FParams.Count - 1 do
+  begin
+    FParams[i].CompileToTempVar(Offset, Param);
+    if (not Param.VarType.CompatibleWith(Result.VarType)) then
+      LapeExceptionFmt(lpeVariableOfTypeExpected, [Result.VarType.AsString, Param.VarType.AsString], DocPos);
+
+    with TLapeTree_If.Create(FCompiler, @_DocPos) do
+    try
+      Condition := TLapeTree_Operator.Create(op_cmp_LessThan, Self);
+      with TLapeTree_Operator(Condition) do
+      begin
+        Left := TLapeTree_ResVar.Create(Param.IncLock(), Condition);
+        Right := TLapeTree_ResVar.Create(Result.IncLock(), Condition);
+      end;
+
+      Body := TLapeTree_Operator.Create(op_Assign, Self);
+      with TLapeTree_Operator(Body) do
+      begin
+        Left := TLapeTree_ResVar.Create(Result.IncLock(), Body);
+        Right := TLapeTree_ResVar.Create(Param.IncLock(), Body);
+      end;
+
+      Compile(Offset).Spill();
+    finally
+      Free();
+
+      Param.Spill(2);
+    end;
+  end;
+end;
+
+function TLapeTree_InternalMethod_Max.resType: TLapeType;
+begin
+  if (FResType = nil) then
+  begin
+    if (FParams.Count < 2) then
+      LapeExceptionFmt(lpeWrongNumberParams, [2], DocPos);
+
+    FResType := FParams[0].resType();
+    if not (FResType.BaseType in LapeIntegerTypes + LapeRealTypes) then
+      LapeException(lpeInvalidEvaluation, DocPos);
+  end;
+
+  Result := inherited;
+end;
+
+function TLapeTree_InternalMethod_Max.Compile(var Offset: Integer): TResVar;
+var
+  Param: TResVar;
+  i: Int32;
+begin
+  Dest := NullResVar;
+  Result := NullResVar;
+
+  if (FParams.Count < 2) then
+    LapeExceptionFmt(lpeWrongNumberParams, [2], DocPos);
+
+  FParams[0].CompileToTempVar(Offset, Result);
+  if not (FResType.BaseType in LapeIntegerTypes + LapeRealTypes) then
+    LapeException(lpeInvalidEvaluation, DocPos);
+
+  Result.setReadWrite(True, True);
+
+  for i := 1 to FParams.Count - 1 do
+  begin
+    FParams[i].CompileToTempVar(Offset, Param);
+    if (not Param.VarType.CompatibleWith(Result.VarType)) then
+      LapeExceptionFmt(lpeVariableOfTypeExpected, [Result.VarType.AsString, Param.VarType.AsString], DocPos);
+
+    with TLapeTree_If.Create(FCompiler, @_DocPos) do
+    try
+      Condition := TLapeTree_Operator.Create(op_cmp_GreaterThan, Self);
+      with TLapeTree_Operator(Condition) do
+      begin
+        Left := TLapeTree_ResVar.Create(Param.IncLock(), Condition);
+        Right := TLapeTree_ResVar.Create(Result.IncLock(), Condition);
+      end;
+
+      Body := TLapeTree_Operator.Create(op_Assign, Self);
+      with TLapeTree_Operator(Body) do
+      begin
+        Left := TLapeTree_ResVar.Create(Result.IncLock(), Body);
+        Right := TLapeTree_ResVar.Create(Param.IncLock(), Body);
+      end;
+
+      Compile(Offset).Spill();
+    finally
+      Free();
+
+      Param.Spill(2);
+    end;
+  end;
 end;
 
 constructor TLapeTree_Callback.Create(ACompiler: TLapeCompilerBase; ACallback: TLapeTreeCallback; AData: Pointer = nil; ADocPos: PDocPos = nil);

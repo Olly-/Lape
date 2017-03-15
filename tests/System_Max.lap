@@ -1,0 +1,11 @@
+{$assertions on}
+
+var
+  Arr: array of Int64 = [100..105];
+begin
+  Assert(Max(2, 4, 6, 8) = 8);
+  Assert(Max(40.5, 40.4, 40.3, 40.2) = 40.5);
+  Assert(Max(Arr[0], Arr[1], Arr[3], Arr[4], Arr[5]) = 105);
+
+  Writeln('Max :: Passed');
+end;

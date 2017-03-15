@@ -10,10 +10,6 @@
 addGlobalVar(Pi, 'Pi').isConstant := True;
 addGlobalVar(ltInt32, @RandSeed, 'RandSeed');
 
-addGlobalFunc('function Min(x,y: Int64): Int64; overload;', @_LapeMin);
-addGlobalFunc('function Min(x,y: Extended): Extended; overload;', @_LapeMinF);
-addGlobalFunc('function Max(x,y: Int64): Int64; overload;', @_LapeMax);
-addGlobalFunc('function Max(x,y: Extended): Extended; overload;', @_LapeMaxF);
 addGlobalFunc('function Abs(x: Extended): Extended; overload;', @_LapeAbs);
 addGlobalFunc('function Abs(x: Int64): Int64; overload;', @_LapeAbsI);
 addGlobalFunc('function Sign(AValue: Int64): Int8; overload;', @_LapeSign);
