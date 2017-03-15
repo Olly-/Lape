@@ -4198,28 +4198,6 @@ begin
   FForceParam := True;
 end;
 
-type
-  TTest = class(TLapeStackTempVar)
-    function getLock: Int32;
-  end;
-
-function lock(rv: TResVar): Int32;
-begin
-  Result := -1;
-
-  if (rv.VarPos.MemPos = mpVar) and
-     (rv.VarPos.StackVar <> nil) and (rv.VarPos.StackVar is TLapeStackTempVar)
-  then
-    Result := TTest(rv.VarPos.StackVar).getLock();
-
-  Writeln(Result);
-end;
-
-function TTest.getLock: Int32;
-begin
-  Result := FLock;
-end;
-
 function TLapeTree_InternalMethod_Pop.resType: TLapeType;
 var
   ParamType: TLapeType;
