@@ -1,0 +1,29 @@
+{$assertions on}
+
+type
+  TPoint = record X, Y: Int32; end;
+
+var
+  Integers: array of Int64 = [20..200];
+  Points: array of TPoint = [[100, 100], [200, 200], [300, 300]];
+  Strings: array of String = ['abc', '123', 'xyz'];
+  Floats: array[100..102] of Extended = [1.23, 1.24, 1.25];
+  Index: Int32;
+begin
+  Index := Find(100, Integers);
+  Assert(Integers[Index] = 100);
+
+  Index := Find(-1, Integers);
+  Assert(Index = -1);
+
+  Index := Find(TPoint([200, 200]), Points);
+  Assert(Points[Index] = [200, 200]);
+
+  Index := Find('xyz', Strings);
+  Assert(Strings[Index] = 'xyz');
+
+  Index := Find(1.24, Floats);
+  Assert(Floats[Index] = 1.24);
+
+  Writeln('Find :: Passed');
+end;   

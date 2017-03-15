@@ -3232,6 +3232,9 @@ begin
   FInternalMethodMap['Min'] := TLapeTree_InternalMethod_Min;
   FInternalMethodMap['Max'] := TLapeTree_InternalMethod_Max;
 
+  FInternalMethodMap['Find'] := TLapeTree_InternalMethod_Find;
+  FInternalMethodMap['FindAll'] := TLapeTree_InternalMethod_FindAll;
+
   FInternalMethodMap['label'] := TLapeTree_InternalMethod_Label;
   FInternalMethodMap['goto'] := TLapeTree_InternalMethod_GoTo;
 
