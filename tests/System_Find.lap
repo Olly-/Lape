@@ -7,6 +7,7 @@ var
   Integers: array of Int64 = [20..200];
   Points: array of TPoint = [[100, 100], [200, 200], [300, 300]];
   Strings: array of String = ['abc', '123', 'xyz'];
+  Bools: array of Boolean = [True, False, False, True, False, True];
   Floats: array[100..102] of Extended = [1.23, 1.24, 1.25];
   Index: Int32;
 begin
@@ -25,5 +26,11 @@ begin
   Index := Find(1.24, Floats);
   Assert(Floats[Index] = 1.24);
 
+  Index := Find(True, Bools, 1);
+  Assert(Index = 3);
+
+  Index := Find(False, Bools, 3, 1);
+  Assert(Index = 4);
+
   Writeln('Find :: Passed');
-end;   
+end;

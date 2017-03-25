@@ -4445,18 +4445,25 @@ end;
 
 function TLapeTree_InternalMethod_Find.Compile(var Offset: Integer): TResVar;
 var
-  Item, Arr, LoopCounter, LoopLimit: TResVar;
+  Item, Arr, Start, Count, LoopCounter, LoopLimit: TResVar;
   Assign: TLapeTree_Operator;
   Method: TLapeTree_ExprBase;
 begin
   Dest := NullResVar;
   Result := NullResVar;
+  Start := NullResVar;
+  Count := NullResVar;
 
-  if (FParams.Count <> 2) then
+  if (FParams.Count < 2) then
     LapeExceptionFmt(lpeWrongNumberParams, [2], DocPos);
 
   FParams[0].CompileToTempVar(Offset, Item);
   FParams[1].CompileToTempVar(Offset, Arr);
+
+  if (FParams.Count > 2) then
+    FParams[2].CompileToTempVar(Offset, Start);
+  if (FParams.Count > 3) then
+    FParams[3].CompileToTempVar(Offset, Count);
 
   if (Item.VarType.BaseType in LapeArrayTypes - LapeStringTypes) then // Lape does not have array comparison
     LapeException(lpeInvalidEvaluation, DocPos);
@@ -4477,30 +4484,67 @@ begin
     Free();
   end;
 
+  // LoopCounter := Start;
+  if (FParams.Count > 2) then
+  begin
+    with TLapeTree_Operator.Create(op_Assign, Self) do
+    try
+      Left := TLapeTree_ResVar.Create(LoopCounter.IncLock(), Self);
+      Right := TLapeTree_ResVar.Create(Start.IncLock(), Self);
+      Compile(Offset).Spill();
+    finally
+      Free();
+    end;
+  end else
   // LoopCounter := Low(Arr);
-  Method := TLapeTree_InternalMethod_Low.Create(Self);
-  TLapeTree_InternalMethod_Low(Method).addParam(TLapeTree_ResVar.Create(Arr.IncLock(), Self));
+  begin
+    Method := TLapeTree_InternalMethod_Low.Create(Self);
+    TLapeTree_InternalMethod_Low(Method).addParam(TLapeTree_ResVar.Create(Arr.IncLock(), Self));
 
-  with TLapeTree_Operator.Create(op_Assign, Self) do
-  try
-    Left := TLapeTree_ResVar.Create(LoopCounter.IncLock(), Self);
-    Right := Method.FoldConstants() as TLapeTree_ExprBase;
-    Compile(Offset).Spill();
-  finally
-    Free();
+    with TLapeTree_Operator.Create(op_Assign, Self) do
+    try
+      Left := TLapeTree_ResVar.Create(LoopCounter.IncLock(), Self);
+      Right := Method.FoldConstants() as TLapeTree_ExprBase;
+      Compile(Offset).Spill();
+    finally
+      Free();
+    end;
   end;
 
-  // LoopLimit := High(Arr);
-  Method := TLapeTree_InternalMethod_High.Create(Self);
-  TLapeTree_InternalMethod_High(Method).addParam(TLapeTree_ResVar.Create(Arr.IncLock(), Self));
+  // LoopLimit = LoopCounter + Count;
+  if (FParams.Count > 3) then
+  begin
+    with TLapeTree_Operator.Create(op_Assign, Self) do
+    try
+      Left := TLapeTree_ResVar.Create(LoopLimit.IncLock(), Self);
+      Right := TLapeTree_ResVar.Create(LoopCounter.IncLock(), Self);
+      Compile(Offset).Spill();
+    finally
+      Free();
+    end;
 
-  with TLapeTree_Operator.Create(op_Assign, Self) do
-  try
-    Left := TLapeTree_ResVar.Create(LoopLimit.IncLock(), Self);
-    Right := Method.FoldConstants() as TLapeTree_ExprBase;
-    Compile(Offset).Spill();
-  finally
-    Free();
+    with TLapeTree_Operator.Create(op_AssignPlus, Self) do
+    try
+      Left := TLapeTree_ResVar.Create(LoopLimit.IncLock(), Self);
+      Right := TLapeTree_ResVar.Create(Count.IncLock(), Self);
+      Compile(Offset).Spill();
+    finally
+      Free();
+    end;
+  end else
+  // LoopLimit := High(Arr);
+  begin
+    Method := TLapeTree_InternalMethod_High.Create(Self);
+    TLapeTree_InternalMethod_High(Method).addParam(TLapeTree_ResVar.Create(Arr.IncLock(), Self));
+
+    with TLapeTree_Operator.Create(op_Assign, Self) do
+    try
+      Left := TLapeTree_ResVar.Create(LoopLimit.IncLock(), Self);
+      Right := Method.FoldConstants() as TLapeTree_ExprBase;
+      Compile(Offset).Spill();
+    finally
+      Free();
+    end;
   end;
 
   with TLapeTree_For.Create(Self) do
@@ -4542,6 +4586,8 @@ begin
     LoopLimit.Spill(1);
     Item.Spill(1);
     Arr.Spill(1);
+    Start.Spill(1);
+    Count.Spill(1);
   end;
 end;
 
@@ -4555,17 +4601,24 @@ end;
 
 function TLapeTree_InternalMethod_FindAll.Compile(var Offset: Integer): TResVar;
 var
-  Item, Arr, LoopCounter, LoopLimit: TResVar;
+  Item, Arr, Start, Count, LoopCounter, LoopLimit: TResVar;
   Method: TLapeTree_ExprBase;
 begin
   Dest := NullResVar;
   Result := NullResVar;
+  Start := NullResVar;
+  Count := NullResVar;
 
-  if (FParams.Count <> 2) then
+  if (FParams.Count < 2) then
     LapeExceptionFmt(lpeWrongNumberParams, [2], DocPos);
 
   FParams[0].CompileToTempVar(Offset, Item);
   FParams[1].CompileToTempVar(Offset, Arr);
+
+  if (FParams.Count > 2) then
+    FParams[2].CompileToTempVar(Offset, Start);
+  if (FParams.Count > 3) then
+    FParams[3].CompileToTempVar(Offset, Count);
 
   if (Item.VarType.BaseType in LapeArrayTypes - LapeStringTypes) then // Lape does not have array comparison
     LapeException(lpeInvalidEvaluation, DocPos);
@@ -4576,30 +4629,67 @@ begin
   LoopCounter := _ResVar.New(FCompiler.getTempVar(ltSizeInt)).IncLock();
   LoopLimit := _ResVar.New(FCompiler.getTempVar(ltSizeInt)).IncLock();
 
+  // LoopCounter := Start;
+  if (FParams.Count > 2) then
+  begin
+    with TLapeTree_Operator.Create(op_Assign, Self) do
+    try
+      Left := TLapeTree_ResVar.Create(LoopCounter.IncLock(), Self);
+      Right := TLapeTree_ResVar.Create(Start.IncLock(), Self);
+      Compile(Offset).Spill();
+    finally
+      Free();
+    end;
+  end else
   // LoopCounter := Low(Arr);
-  Method := TLapeTree_InternalMethod_Low.Create(Self);
-  TLapeTree_InternalMethod_Low(Method).addParam(TLapeTree_ResVar.Create(Arr.IncLock(), Self));
+  begin
+    Method := TLapeTree_InternalMethod_Low.Create(Self);
+    TLapeTree_InternalMethod_Low(Method).addParam(TLapeTree_ResVar.Create(Arr.IncLock(), Self));
 
-  with TLapeTree_Operator.Create(op_Assign, Self) do
-  try
-    Left := TLapeTree_ResVar.Create(LoopCounter.IncLock(), Self);
-    Right := Method.FoldConstants() as TLapeTree_ExprBase;
-    Compile(Offset).Spill();
-  finally
-    Free();
+    with TLapeTree_Operator.Create(op_Assign, Self) do
+    try
+      Left := TLapeTree_ResVar.Create(LoopCounter.IncLock(), Self);
+      Right := Method.FoldConstants() as TLapeTree_ExprBase;
+      Compile(Offset).Spill();
+    finally
+      Free();
+    end;
   end;
 
-  // LoopLimit := High(Arr);
-  Method := TLapeTree_InternalMethod_High.Create(Self);
-  TLapeTree_InternalMethod_High(Method).addParam(TLapeTree_ResVar.Create(Arr.IncLock(), Self));
+  // LoopLimit = LoopCounter + Count;
+  if (FParams.Count > 3) then
+  begin
+    with TLapeTree_Operator.Create(op_Assign, Self) do
+    try
+      Left := TLapeTree_ResVar.Create(LoopLimit.IncLock(), Self);
+      Right := TLapeTree_ResVar.Create(LoopCounter.IncLock(), Self);
+      Compile(Offset).Spill();
+    finally
+      Free();
+    end;
 
-  with TLapeTree_Operator.Create(op_Assign, Self) do
-  try
-    Left := TLapeTree_ResVar.Create(LoopLimit.IncLock(), Self);
-    Right := Method.FoldConstants() as TLapeTree_ExprBase;
-    Compile(Offset).Spill();
-  finally
-    Free();
+    with TLapeTree_Operator.Create(op_AssignPlus, Self) do
+    try
+      Left := TLapeTree_ResVar.Create(LoopLimit.IncLock(), Self);
+      Right := TLapeTree_ResVar.Create(Count.IncLock(), Self);
+      Compile(Offset).Spill();
+    finally
+      Free();
+    end;
+  end else
+  // LoopLimit := High(Arr);
+  begin
+    Method := TLapeTree_InternalMethod_High.Create(Self);
+    TLapeTree_InternalMethod_High(Method).addParam(TLapeTree_ResVar.Create(Arr.IncLock(), Self));
+
+    with TLapeTree_Operator.Create(op_Assign, Self) do
+    try
+      Left := TLapeTree_ResVar.Create(LoopLimit.IncLock(), Self);
+      Right := Method.FoldConstants() as TLapeTree_ExprBase;
+      Compile(Offset).Spill();
+    finally
+      Free();
+    end;
   end;
 
   with TLapeTree_For.Create(Self) do
@@ -4636,6 +4726,8 @@ begin
     LoopLimit.Spill(1);
     Item.Spill(1);
     Arr.Spill(1);
+    Start.Spill(1);
+    Count.Spill(1);
   end;
 end;
 
