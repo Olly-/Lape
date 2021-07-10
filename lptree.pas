@@ -6093,101 +6093,85 @@ begin
 end;
 
 function TLapeTree_MultiIf.Compile(var Offset: Integer): TResVar;
-
-  function CreateOp(op: EOperator; Condition: TResVar; var Cmp: TLapeTree_ExprBase): TLapeTree_Operator;
-  var
-    tmpRes: TLapeTree_Operator;
-  begin
-    tmpRes := TLapeTree_Operator.Create(op, Cmp);
-    with tmpRes do
-    begin
-      Left := TLapeTree_ResVar.Create(Condition.IncLock(), Cmp);
-      Right := Cmp;
-      Cmp := FRight;
-    end;
-
-    Result := TLapeTree_Operator(tmpRes.FoldConstants(False));
-    if (tmpRes <> Result) then
-    begin
-      Cmp.Parent := nil;
-      tmpRes.Free();
-    end;
-  end;
-
 var
   i: Integer;
   ConditionVar: TResVar;
-  CheckField, opOR: TLapeTree_Operator;
   Vals: TLapeStatementList.TTArray;
-  tmpExpr: TLapeTree_ExprBase;
+  Offsets: TIntegerArray;
+  Conditions: array of TResVar;
+  SkipBody: Integer;
 begin
   Result := NullResVar;
+
   Assert((FValues.Count > 0) or (FElse <> nil));
   Assert(FCondition <> nil);
 
-  CheckField := nil;
-  opOR := nil;
-  if (not FCondition.CompileToTempVar(Offset, ConditionVar)) then
+  if (not FCondition.CompileToTempVar(Offset, ConditionVar, 1)) then
     LapeException(lpeInvalidCondition, DocPos);
 
-  try
+  Vals := FValues.ExportToArray();
 
-    Vals := FValues.ExportToArray();
-    for i := 0 to High(Vals) do
+  SetLength(Offsets, Length(Vals));
+  SetLength(Conditions, Length(Vals));
+
+  for i := 0 to High(Vals) do
+  begin
+    if (Vals[i] is TLapeTree_ExprBase) then
     begin
-      if (Vals[i] is TLapeTree_Range) then
-        with TLapeTree_Range(Vals[i]) do
+      with TLapeTree_Operator.Create(op_cmp_Equal, Self) do
+      try
+        Left := TLapeTree_ResVar.Create(Vals[i].Compile(Offset), Self);
+        Right := TLapeTree_ResVar.Create(ConditionVar, Self);
+
+        Conditions[i] := Compile(Offset);
+      finally
+        Free();
+      end;
+    end else
+    if (Vals[i] is TLapeTree_Range) then
+    begin
+      with TLapeTree_Operator.Create(op_AND, Self) do
+      try
+        Left := TLapeTree_Operator.Create(op_cmp_GreaterThanOrEqual, Self);
+        with TLapeTree_Operator(Left) do
         begin
-          CheckField := TLapeTree_Operator.Create(op_AND, Vals[i]);
-          CheckField.Left := CreateOp(op_cmp_GreaterThanOrEqual, ConditionVar, FLo);
-          CheckField.Right := CreateOp(op_cmp_LessThanOrEqual, ConditionVar, FHi);
-          Parent := Vals[i];
-        end
-      else if (Vals[i] is TLapeTree_ExprBase) then
-        CheckField := CreateOp(op_cmp_Equal, ConditionVar, TLapeTree_ExprBase(Vals[i]))
-      else
-        LapeException(lpeInvalidEvaluation, DocPos);
+          Left := TLapeTree_ResVar.Create(ConditionVar, Self);
+          Right := TLapeTree_ResVar.Create(TLapeTree_Range(Vals[i]).FLo.Compile(Offset), Self);
+        end;
 
-      if (opOR = nil) then
-        opOR := CheckField
-      else
-      begin
-        tmpExpr := opOR;
-        opOR := TLapeTree_Operator.Create(op_OR, CheckField);
-        opOR.Left := CheckField;
-        opOR.Right := tmpExpr;
+        Right := TLapeTree_Operator.Create(op_cmp_LessThanOrEqual, Self);
+        with TLapeTree_Operator(Right) do
+        begin
+          Left := TLapeTree_ResVar.Create(ConditionVar, Self);
+          Right := TLapeTree_ResVar.Create(TLapeTree_Range(Vals[i]).FHi.Compile(Offset), Self);
+        end;
+
+        Conditions[i] := Compile(Offset);
+      finally
+        Free();
       end;
-      CheckField := nil;
-    end;
+    end else
+      LapeException(lpeInvalidEvaluation, DocPos);
 
-    tmpExpr := FCondition;
-    FCondition := opOR;
-    try
-      if (FCondition <> nil) then
-        Result := inherited
-      else
-        FElse.CompileToTempVar(Offset, Result);
-    finally
-      FCondition := tmpExpr;
-    end;
-  finally
-    for i := 0 to High(Vals) do
-      if (Vals[i].Parent <> Self) then
-      begin
-        if (Vals[i] is TLapeTree_Range) then
-          with TLapeTree_Range(Vals[i]) do
-          begin
-            Lo := FLo;
-            Hi := FHi;
-          end;
-        addValue(Vals[i]);
-      end;
-
-    if (CheckField <> nil) then
-      CheckField.Free();
-    if (opOR <> nil) and (opOr <> CheckField) then
-      opOR.Free();
+    // Jump to body
+    FCompiler.Emitter.FullEmit := False;
+    Offsets[i] := FCompiler.Emitter._JmpRIf(0, Conditions[i], Offset, @_DocPos);
+    FCompiler.Emitter.FullEmit := True;
   end;
+
+  if (FElse <> nil) then
+    FElse.CompileToTempVar(Offset, Result);
+
+  // Skip body
+  FCompiler.Emitter.FullEmit := False;
+  SkipBody := FCompiler.Emitter._JmpR(0, Offset, @_DocPos);
+  FCompiler.Emitter.FullEmit := True;
+
+  Result := CompileBody(Offset);
+
+  for i := 0 to High(Vals) do
+    FCompiler.Emitter._JmpRIf(FStartBodyOffset - Offsets[i], Conditions[i], Offsets[i], @_DocPos);
+  FCompiler.Emitter._JmpR(Offset - SkipBody, SkipBody, @_DocPos);
 
   ConditionVar.Spill(1);
 end;
